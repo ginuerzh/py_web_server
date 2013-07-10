@@ -22,11 +22,19 @@
 #
 #
 import os
+import base64
+import uuid
 
 import tornado.ioloop
 import tornado.web
+from tornado.options import define, options
 import handler
 
+import motor
+
+define("server_port", default=8000, type=int, help="The server port")
+define("db_host", default="localhost", help="Database host")
+define("db_port", default="27017", help="Database port")
 
 settings = dict(
 
@@ -38,29 +46,34 @@ settings = dict(
     #ui_methods=
 
 # Authentication and security settings:
-    cookie_secret="abcdefgABCDEFG",
+    cookie_secret=base64.b64encode(uuid.uuid4().bytes + uuid.uuid4().bytes),
     login_url="/login",
     #xsrf_cookies=
 
 # Template settings:
     #autoescape=xhtml_escape
-    template_path="template",
+    template_path=os.path.join(os.path.dirname(__file__), "template"),
 
 # Static file settings:
     static_path=os.path.join(os.path.dirname(__file__), "static"),
     #static_url_prefix="/static/"
+
+    db=motor.MotorClient().open_sync().usr_test
 )
 
 application = tornado.web.Application([
     (r"/", handler.MainHandler),
     (r"/login", handler.LoginHandler),
+    (r"/register", handler.RegisterHandler),
+    (r"/logout", handler.LogoutHandler),
+    (r"/upload", handler.UploadHandler),
 ], **settings)
 
 def main():
-    application.listen(8000)
+    tornado.options.parse_command_line()
+    application.listen(options.server_port)
     tornado.ioloop.IOLoop.instance().start()
     return 0
 
 if __name__ == '__main__':
     main()
-

@@ -21,32 +21,88 @@
 #  MA 02110-1301, USA.
 #
 #
+import time
+import logging
+
 import tornado.web
+import tornado.gen
+import tornado.httputil
 
 class BaseHandler(tornado.web.RequestHandler):
     def get_current_user(self):
-        return self.get_secure_cookie("user")
-
+        return self.get_secure_cookie("usr")
 
 class MainHandler(BaseHandler):
-    @tornado.web.authenticated
     @tornado.web.asynchronous
+    @tornado.web.authenticated
     def get(self):
+        print "Get in Main Handler"
         name = tornado.escape.xhtml_escape(self.current_user)
-        self.write("Hello, " + name)
-        self.finish()
+        self.render("main.html")
 
 class LoginHandler(BaseHandler):
     @tornado.web.asynchronous
     def get(self):
-        self.render("login.html")
+        if self.current_user:
+            self.redirect("/")
+        else:
+            self.render("login.html")
+
+    @tornado.web.asynchronous
+    @tornado.gen.coroutine
+    def post(self):
+        db = self.settings['db']
+        query = dict(username=self.get_argument("username"),
+                     password=self.get_argument("password"))
+        usr = yield db.usr.find_one(query)
+        if not usr:
+            self.redirect("/register")
+        else:
+            self.set_secure_cookie("usr", query["username"])
+            self.redirect("/")
+
+class RegisterHandler(BaseHandler):
+    @tornado.web.asynchronous
+    def get(self):
+        self.render("register.html")
+
+    @tornado.web.asynchronous
+    @tornado.gen.coroutine
+    def post(self):
+        db = self.settings['db']
+        usr = yield db.usr.find_one({"username":self.get_argument("username")})
+
+        if not usr:
+            doc = dict(username=self.get_argument("username"),
+                       password=self.get_argument("password"))
+            result = yield db.usr.insert(doc)
+            self.set_secure_cookie("usr", doc["username"])
+            self.redirect("/")
+        else:
+            self.redirect("/login")
+
+class LogoutHandler(BaseHandler):
+    @tornado.web.asynchronous
+    def get(self):
+        self.clear_cookie("usr")
+        self.redirect("/login")
+
+class UploadHandler(BaseHandler):
+    @tornado.web.asynchronous
+    def get(self):
+        self.render("upload.html")
 
     @tornado.web.asynchronous
     def post(self):
-        self.set_header("Content-Type", "text/plain")
-        content = self.get_argument("message")
-        if content != "ginuerzh":
-            raise tornado.web.HTTPError(403)
-        else:
-            self.set_secure_cookie("user", content)
-            self.redirect("/")
+        for k, v in self.request.files.iteritems():
+            logging.info(k)
+            for file in v:
+                logging.info(file.content_type)
+                logging.info(file.filename)
+                suffix = '.' + file.filename.split('.').pop().lower()
+                file_path = "./static/" + str(int(time.time())) + suffix
+                with open(file_path, "w") as f:
+                    f.write(file.body)
+                    f.close()
+
+        self.finish()
