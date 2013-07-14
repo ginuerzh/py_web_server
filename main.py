@@ -27,14 +27,14 @@ import uuid
 
 import tornado.ioloop
 import tornado.web
-from tornado.options import define, options
+from tornado.options import options
 import handler
+import imagehandler
 
 import motor
+import motor.web
 
-define("server_port", default=8000, type=int, help="The server port")
-define("db_host", default="localhost", help="Database host")
-define("db_port", default="27017", help="Database port")
+import conf
 
 settings = dict(
 
@@ -58,21 +58,28 @@ settings = dict(
     static_path=os.path.join(os.path.dirname(__file__), "static"),
     #static_url_prefix="/static/"
 
-    db=motor.MotorClient().open_sync().usr_test
+    db = motor.MotorClient().open_sync().usr_test
 )
+
 
 application = tornado.web.Application([
     (r"/", handler.MainHandler),
     (r"/login", handler.LoginHandler),
     (r"/register", handler.RegisterHandler),
     (r"/logout", handler.LogoutHandler),
-    (r"/upload", handler.UploadHandler),
+    (r"/images/upload", imagehandler.ImageUploadHandler),
+    (r"/images/([0-9a-fA-F]{24})", imagehandler.ImageHandler, {"database": settings['db']}),
+    (r"/images/s/([0-9a-fA-F]{24})", imagehandler.SmallImageHandler, {"database": settings['db']}),
+    #(r"/images/m/([0-9a-fA-F]{24})", handler.MediumImageHandler),
+    #(r"/images/l/([0-9a-fA-F]{24})", handler.LargeImageHandler),
 ], **settings)
 
 def main():
     tornado.options.parse_command_line()
+
     application.listen(options.server_port)
     tornado.ioloop.IOLoop.instance().start()
+
     return 0
 
 if __name__ == '__main__':

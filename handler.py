@@ -21,24 +21,32 @@
 #  MA 02110-1301, USA.
 #
 #
-import time
+
 import logging
 
 import tornado.web
 import tornado.gen
-import tornado.httputil
+from tornado.options import options
+
+import motor.web
 
 class BaseHandler(tornado.web.RequestHandler):
     def get_current_user(self):
         return self.get_secure_cookie("usr")
 
+    #def write_error(self, status_code, **kwargs):
+    #    result = dict(r=status_code, desc="Http Error!")
+
+    #    self.write(result)
+
 class MainHandler(BaseHandler):
     @tornado.web.asynchronous
     @tornado.web.authenticated
+    @tornado.gen.coroutine
     def get(self):
-        print "Get in Main Handler"
-        name = tornado.escape.xhtml_escape(self.current_user)
-        self.render("main.html")
+        db = self.settings['db']
+        usr = yield db.usr.find_one({'username': self.current_user}, {'images': 1})
+        self.render("main.html", images=usr.get('images', []))
 
 class LoginHandler(BaseHandler):
     @tornado.web.asynchronous
@@ -59,7 +67,12 @@ class LoginHandler(BaseHandler):
             self.redirect("/register")
         else:
             self.set_secure_cookie("usr", query["username"])
-            self.redirect("/")
+            next = self.get_argument("next", '')
+            logging.info("next uri: %s" % next)
+            if next:
+                self.redirect(next)
+            else:
+                self.redirect("/")
 
 class RegisterHandler(BaseHandler):
     @tornado.web.asynchronous
@@ -86,23 +99,3 @@ class LogoutHandler(BaseHandler):
     def get(self):
         self.clear_cookie("usr")
         self.redirect("/login")
-
-class UploadHandler(BaseHandler):
-    @tornado.web.asynchronous
-    def get(self):
-        self.render("upload.html")
-
-    @tornado.web.asynchronous
-    def post(self):
-        for k, v in self.request.files.iteritems():
-            logging.info(k)
-            for file in v:
-                logging.info(file.content_type)
-                logging.info(file.filename)
-                suffix = '.' + file.filename.split('.').pop().lower()
-                file_path = "./static/" + str(int(time.time())) + suffix
-                with open(file_path, "w") as f:
-                    f.write(file.body)
-                    f.close()
-
-        self.finish()
