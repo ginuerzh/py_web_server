@@ -28,6 +28,7 @@ import tornado.web
 import tornado.gen
 from tornado.options import options
 
+import gridfs
 import motor.web
 import bson.objectid
 
@@ -37,6 +38,10 @@ from PIL import Image
 from handler import BaseHandler
 
 class ImageUploadHandler(BaseHandler):
+
+    max_size = (1600, 1200)
+    accepted_format = {"JPEG", "PNG"}
+
     @tornado.web.asynchronous
     @tornado.web.authenticated
     def get(self):
@@ -50,58 +55,76 @@ class ImageUploadHandler(BaseHandler):
             self.finish()
             return
 
-        for k, v in self.request.files.iteritems():
-            logging.info(k)
-            for file in v:
-                logging.info(file.content_type)
-                logging.info(file.filename)
 
+        for k, v in self.request.files.iteritems():
+            #logging.info(k)
+            for file in v:
+                print file.filename, file.content_type, len(file.body)
+                try:
+                    im = Image.open(cStringIO.StringIO(file.body))
+                    print im.format, im.size, im.mode
+                    #print im.info
+                except IOError:
+                    self.write_error(1, err="File invalid!")
+                    return
+
+                if im.format not in self.accepted_format:
+                    self.write_error(1, err="File format invalid")
+                    return
+
+                if im.size[0] > self.max_size[0] or im.size[1] > self.max_size[1]:
+                    im.thumbnail(self.max_size, Image.ANTIALIAS)
+
+                out = cStringIO.StringIO()
+                im.save(out, im.format)
                 fs = yield motor.MotorGridFS(self.settings['db']).open()
-                original = yield fs.put(file.body,
+                image_id = yield fs.put(out.getvalue(),
                                 content_type=file.content_type,
                                 filename=file.filename,
                                 metadata={'user': self.current_user})
 
-                logging.info(original)
+                #logging.info(image_id)
 
-        self.redirect("/images/%s" % str(original))
+        self.redirect("/images/%s" % str(image_id))
 
+class ImageHandler(BaseHandler):
 
-class ImageHandler(motor.web.GridFSHandler):
-    def get_cache_time(self, path, modified, mime_type):
-        return 86400    # 24 hours
+    clients = [{'large': (1280, 720), 'medium': (640, 480), 'small': (320, 240), 'thumb': (128, 128)},
+               {'large': (1024, 768), 'medium': (800, 600), 'small': (128, 128), 'thumb': (100, 100)}]
 
-    def get_gridfs_file(self, fs, path):
-        return fs.get(file_id=bson.objectid.ObjectId(path))
-
-def check_and_resize(db, path, size):
-    origin_id = bson.objectid.ObjectId(path)
-    fs = yield motor.MotorGridFS(db).open()
-
-    file = yield db.fs.files.find_one({'metadata.origin_id': origin_id,
-                        'metadata.size': size})
-    if file:
-        logging.info("find one small image %s" % file['_id'])
-        yield file['_id']
-    else:
-        logging.info('small image not exist')
-        original = yield fs.get(origin_id)
-        content = yield original.read()
-        im = Image.open(cStringIO.StringIO(content))
-        im.thumbnail((options.thumbnail_width, options.thumbnail_height),
-            Image.ANTIALIAS)
-        #print im.format, "%dx%d" % im.size, im.mode
-        out = cStringIO.StringIO()
-        im.save(out, im.format)
-        yield fs.put(out.getvalue(),
-                        content_type=original.content_type,
-                        metadata={'origin_id': origin_id, 'size': size})
-
-
-class SmallImageHandler(ImageHandler):
     @tornado.web.asynchronous
     @tornado.gen.coroutine
     def get(self, path):
-        small = yield check_and_resize(self.settings['db'], path, 'small')
-        yield motor.web.GridFSHandler.get(self, small)
+        clientid = self.get_argument("client", None)
+        size = self.get_argument("size", None)
+        db = self.settings['db']
+        fs = yield motor.MotorGridFS(db).open()
 
+        try:
+            image =yield fs.get(bson.objectid.ObjectId(path))
+        except gridfs.NoFile:
+            self.write_error(1, err="File not found")
+            return
+
+        self.set_header("Content-Type", image.content_type)
+
+        if not clientid and not size:
+            yield image.stream_to_handler(self)
+            self.finish()
+            return
+
+        if not clientid or int(clientid) >= len(self.clients):
+            clientid = 0
+        if not size or size not in self.clients[int(clientid)]:
+            size = 'medium'
+
+        content = yield image.read()
+        im = Image.open(cStringIO.StringIO(content))
+        im.thumbnail(self.clients[int(clientid)][size], Image.ANTIALIAS)
+        out = cStringIO.StringIO()
+        im.save(out, im.format)
+        #logging.info(im.format)
+
+        self.write(out.getvalue())
+        out.close()
+        self.finish()

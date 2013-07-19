@@ -36,7 +36,11 @@
     <h3>Welcome back, {{ current_user }}</h3>
     <img src="{{ static_url("images/logo.jpg") }}"><br />
     {% for image in images %}
-    <img width=300 height=250 src="{{ '/images/%s' % image }}" />
+    </p>
+	<a href="{{ '/images/%s?size=medium' % image }}">
+	    <img src="{{ '/images/%s?size=thumb' % image }}" />
+	</a>
+    </p>
     {% end %}
 
 </body>

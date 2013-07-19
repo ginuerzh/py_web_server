@@ -68,10 +68,7 @@ application = tornado.web.Application([
     (r"/register", handler.RegisterHandler),
     (r"/logout", handler.LogoutHandler),
     (r"/images/upload", imagehandler.ImageUploadHandler),
-    (r"/images/([0-9a-fA-F]{24})", imagehandler.ImageHandler, {"database": settings['db']}),
-    (r"/images/s/([0-9a-fA-F]{24})", imagehandler.SmallImageHandler, {"database": settings['db']}),
-    #(r"/images/m/([0-9a-fA-F]{24})", handler.MediumImageHandler),
-    #(r"/images/l/([0-9a-fA-F]{24})", handler.LargeImageHandler),
+    (r"/images/(.*)", imagehandler.ImageHandler),
 ], **settings)
 
 def main():

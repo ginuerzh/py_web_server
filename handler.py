@@ -34,10 +34,11 @@ class BaseHandler(tornado.web.RequestHandler):
     def get_current_user(self):
         return self.get_secure_cookie("usr")
 
-    #def write_error(self, status_code, **kwargs):
-    #    result = dict(r=status_code, desc="Http Error!")
+    def write_error(self, status_code, **kwargs):
+        result = dict(r=status_code, err=kwargs.get("err", ""))
 
-    #    self.write(result)
+        self.write(result)
+        self.finish()
 
 class MainHandler(BaseHandler):
     @tornado.web.asynchronous
@@ -46,7 +47,17 @@ class MainHandler(BaseHandler):
     def get(self):
         db = self.settings['db']
         usr = yield db.usr.find_one({'username': self.current_user}, {'images': 1})
-        self.render("main.html", images=usr.get('images', []))
+
+        if not usr:
+            self.write_error(1, err="User not found!")
+            return
+        cursor = db.fs.files.find({'metadata.user': self.current_user}).sort("uploadDate", -1).limit(10)
+        images = []
+        while (yield cursor.fetch_next):
+            doc = cursor.next_object()
+            images.append(doc['_id'])
+
+        self.render("main.html", images=images)
 
 class LoginHandler(BaseHandler):
     @tornado.web.asynchronous
@@ -54,14 +65,14 @@ class LoginHandler(BaseHandler):
         if self.current_user:
             self.redirect("/")
         else:
+            #self.write_error(1, err="Login please!")
             self.render("login.html")
-
     @tornado.web.asynchronous
     @tornado.gen.coroutine
     def post(self):
         db = self.settings['db']
-        query = dict(username=self.get_argument("username"),
-                     password=self.get_argument("password"))
+        query = dict(username=self.get_argument("username", ""),
+                     password=self.get_argument("password", ""))
         usr = yield db.usr.find_one(query)
         if not usr:
             self.redirect("/register")
