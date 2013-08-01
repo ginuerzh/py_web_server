@@ -35,9 +35,9 @@ import bson.objectid
 import cStringIO
 from PIL import Image
 
-from handler import BaseHandler
+from handler import BaseRequestHandler
 
-class ImageUploadHandler(BaseHandler):
+class ImageUploadHandler(BaseRequestHandler):
 
     max_size = (1600, 1200)
     accepted_format = {"JPEG", "PNG"}
@@ -87,7 +87,7 @@ class ImageUploadHandler(BaseHandler):
 
         self.redirect("/images/%s" % str(image_id))
 
-class ImageHandler(BaseHandler):
+class ImageHandler(BaseRequestHandler):
 
     clients = [{'large': (1280, 720), 'medium': (640, 480), 'small': (320, 240), 'thumb': (128, 128)},
                {'large': (1024, 768), 'medium': (800, 600), 'small': (128, 128), 'thumb': (100, 100)}]

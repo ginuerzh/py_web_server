@@ -24,12 +24,15 @@
 import os
 import base64
 import uuid
+import os
+import os.path
 
 import tornado.ioloop
 import tornado.web
 from tornado.options import options
 import handler
 import imagehandler
+import imagehandler2
 
 import motor
 import motor.web
@@ -67,8 +70,10 @@ application = tornado.web.Application([
     (r"/login", handler.LoginHandler),
     (r"/register", handler.RegisterHandler),
     (r"/logout", handler.LogoutHandler),
-    (r"/images/upload", imagehandler.ImageUploadHandler),
-    (r"/images/(.*)", imagehandler.ImageHandler),
+    (r"/images/upload", imagehandler2.ImageUploadHandler),
+    #(r"/images/(.*)", imagehandler.ImageHandler),
+    (r"/images/get(.*)", imagehandler2.StaticImageFileHandler,
+            dict(path=options.upload_path))
 ], **settings)
 
 def main():

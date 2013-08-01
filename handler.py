@@ -30,7 +30,7 @@ from tornado.options import options
 
 import motor.web
 
-class BaseHandler(tornado.web.RequestHandler):
+class BaseRequestHandler(tornado.web.RequestHandler):
     def get_current_user(self):
         return self.get_secure_cookie("usr")
 
@@ -40,7 +40,7 @@ class BaseHandler(tornado.web.RequestHandler):
         self.write(result)
         self.finish()
 
-class MainHandler(BaseHandler):
+class MainHandler(BaseRequestHandler):
     @tornado.web.asynchronous
     @tornado.web.authenticated
     @tornado.gen.coroutine
@@ -57,9 +57,9 @@ class MainHandler(BaseHandler):
             doc = cursor.next_object()
             images.append(doc['_id'])
 
-        self.render("main.html", images=images)
+        self.render("main.html", images=[])
 
-class LoginHandler(BaseHandler):
+class LoginHandler(BaseRequestHandler):
     @tornado.web.asynchronous
     def get(self):
         if self.current_user:
@@ -85,7 +85,7 @@ class LoginHandler(BaseHandler):
             else:
                 self.redirect("/")
 
-class RegisterHandler(BaseHandler):
+class RegisterHandler(BaseRequestHandler):
     @tornado.web.asynchronous
     def get(self):
         self.render("register.html")
@@ -105,7 +105,7 @@ class RegisterHandler(BaseHandler):
         else:
             self.redirect("/login")
 
-class LogoutHandler(BaseHandler):
+class LogoutHandler(BaseRequestHandler):
     @tornado.web.asynchronous
     def get(self):
         self.clear_cookie("usr")

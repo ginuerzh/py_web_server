@@ -25,8 +25,9 @@
 from tornado.options import define
 
 
-define("server_port", default=8000, type=int, help="The server port")
+define("server_port", default=8080, type=int, help="The server port")
 define("db_host", default="localhost", help="Database host")
 define("db_port", default="27017", help="Database port")
 define("thumbnail_width", default=128, help="Width of the thumbnail")
 define("thumbnail_height", default=128, help="Height of the thumbnail")
+define("upload_path", default="images", help="The directory of the uploaded files stay on")
